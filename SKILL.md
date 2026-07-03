@@ -84,6 +84,14 @@ This is **not** automatic — nothing resets on its own. Resetting one
 domain doesn't touch cookies/sessions for any other domain in the shared
 profile.
 
+## Concurrent fetches
+
+All fetches and resets share one browser profile, so calls serialize
+through a file lock (`~/.cache/selenium-claude-skill/.lock`) — a second
+concurrent invocation waits for the first to finish rather than racing
+it or crashing. If you fire off several fetches at once, expect them to
+run one at a time, not in parallel.
+
 ## Debugging
 
 `--headed` runs with a visible browser window instead of headless, for

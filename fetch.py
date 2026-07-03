@@ -4,6 +4,7 @@
 Fallback for when WebFetch gets a 403 / bot-check page. See SKILL.md.
 """
 import argparse
+import fcntl
 import json
 import os
 import re
@@ -24,7 +25,9 @@ except ImportError:
     )
     sys.exit(1)
 
-PROFILE_DIR = Path.home() / ".cache" / "selenium-claude-skill" / "profile"
+CACHE_DIR = Path.home() / ".cache" / "selenium-claude-skill"
+PROFILE_DIR = CACHE_DIR / "profile"
+LOCK_PATH = CACHE_DIR / ".lock"
 CONTENT_CHAR_LIMIT = 30000
 CHALLENGE_MARKERS = [
     "Just a moment",
@@ -35,47 +38,77 @@ CHALLENGE_MARKERS = [
 ]
 
 
+def page_still_challenged(html):
+    return any(marker in html for marker in CHALLENGE_MARKERS)
+
+
 def wait_for_challenge_clear(driver, timeout=20):
     start = time.time()
     while time.time() - start < timeout:
-        snippet = driver.page_source[:2000]
-        if not any(marker in snippet for marker in CHALLENGE_MARKERS):
+        if not page_still_challenged(driver.page_source):
             return True
         time.sleep(1)
     return False
 
 
-def get_status_code(driver):
+def extract_status_from_logs(logs, main_frame_id=None):
+    """logs: list of {'message': <json string>} as returned by driver.get_log('performance')."""
     status = None
-    try:
-        logs = driver.get_log("performance")
-    except Exception:
-        return None
     for entry in logs:
         try:
             msg = json.loads(entry["message"])["message"]
         except Exception:
             continue
-        if msg.get("method") == "Network.responseReceived":
-            params = msg["params"]
-            if params.get("type") == "Document":
-                status = params.get("response", {}).get("status", status)
+        if msg.get("method") != "Network.responseReceived":
+            continue
+        params = msg["params"]
+        if params.get("type") != "Document":
+            continue
+        if main_frame_id is not None and params.get("frameId") != main_frame_id:
+            continue
+        status = params.get("response", {}).get("status", status)
     return status
 
 
+def get_main_frame_id(driver):
+    try:
+        driver.execute_cdp_cmd("Page.enable", {})
+        tree = driver.execute_cdp_cmd("Page.getFrameTree", {})
+        return tree["frameTree"]["frame"]["id"]
+    except Exception:
+        return None
+
+
+def get_status_code(driver, main_frame_id):
+    try:
+        logs = driver.get_log("performance")
+    except Exception:
+        return None
+    return extract_status_from_logs(logs, main_frame_id)
+
+
+def parse_chrome_major_version(version_output):
+    match = re.search(r"(\d+)\.", version_output)
+    return int(match.group(1)) if match else None
+
+
 def detect_chrome_major_version(chrome_bin):
-    binary = chrome_bin or shutil.which("google-chrome") or shutil.which("chromium-browser") or shutil.which("chromium")
+    binary = (
+        chrome_bin
+        or shutil.which("google-chrome")
+        or shutil.which("chromium-browser")
+        or shutil.which("chromium")
+    )
     if not binary:
         return None
     try:
         out = subprocess.check_output([binary, "--version"], text=True)
     except Exception:
         return None
-    match = re.search(r"(\d+)\.", out)
-    return int(match.group(1)) if match else None
+    return parse_chrome_major_version(out)
 
 
-def fetch(url, headed=False):
+def _fetch_locked(url, headed):
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 
     options = uc.ChromeOptions()
@@ -86,18 +119,27 @@ def fetch(url, headed=False):
     chrome_bin = os.environ.get("SELENIUM_SKILL_CHROME_BIN")
     version_main = detect_chrome_major_version(chrome_bin)
 
-    driver = uc.Chrome(
-        options=options,
-        headless=not headed,
-        use_subprocess=True,
-        browser_executable_path=chrome_bin,
-        version_main=version_main,
-    )
+    try:
+        driver = uc.Chrome(
+            options=options,
+            headless=not headed,
+            use_subprocess=True,
+            browser_executable_path=chrome_bin,
+            version_main=version_main,
+        )
+    except Exception as e:
+        print(f"URL: {url}\nSTATUS: launch-error\nERROR: {e}")
+        return 1
+
     try:
         driver.execute_cdp_cmd("Network.enable", {})
         raw_ua = driver.execute_script("return navigator.userAgent")
         if "Headless" in raw_ua:
-            driver.execute_cdp_cmd("Network.setUserAgentOverride", {"userAgent": raw_ua.replace("Headless", "")})
+            driver.execute_cdp_cmd(
+                "Network.setUserAgentOverride", {"userAgent": raw_ua.replace("Headless", "")}
+            )
+
+        main_frame_id = get_main_frame_id(driver)
 
         driver.set_page_load_timeout(30)
         try:
@@ -108,7 +150,7 @@ def fetch(url, headed=False):
 
         wait_for_challenge_clear(driver)
 
-        status = get_status_code(driver)
+        status = get_status_code(driver, main_frame_id)
         final_url = driver.current_url
         title = driver.title
         html = driver.page_source
@@ -134,10 +176,25 @@ def fetch(url, headed=False):
         driver.quit()
 
 
-def reset_domain(domain):
+def _with_profile_lock(fn, *args):
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    with open(LOCK_PATH, "w") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            return fn(*args)
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+
+def fetch(url, headed=False):
+    return _with_profile_lock(_fetch_locked, url, headed)
+
+
+def _reset_domain_locked(domain, profile_dir=None):
+    profile_dir = profile_dir or PROFILE_DIR
     cookie_paths = [
-        PROFILE_DIR / "Default" / "Network" / "Cookies",
-        PROFILE_DIR / "Default" / "Cookies",
+        profile_dir / "Default" / "Network" / "Cookies",
+        profile_dir / "Default" / "Cookies",
     ]
     found = False
     for path in cookie_paths:
@@ -158,6 +215,10 @@ def reset_domain(domain):
     if not found:
         print("No profile cookie database found yet — nothing to reset.")
     return 0
+
+
+def reset_domain(domain):
+    return _with_profile_lock(_reset_domain_locked, domain, None)
 
 
 def main():

@@ -33,6 +33,20 @@ Requires Chrome or Chromium installed.
 .venv/bin/python fetch.py --reset-domain example.com   # clear a stuck domain's cookies
 ```
 
+Concurrent calls share one browser profile and serialize through a file
+lock — a second call waits rather than racing the first.
+
+## Tests
+
+```bash
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest
+```
+
+Covers the pure logic (challenge detection, status-code parsing,
+cookie reset) with no live browser needed. Actual browser/network
+behavior is verified manually — see `SKILL.md`.
+
 See `SKILL.md` for full details and how this registers as a Claude Code
 skill.
 
