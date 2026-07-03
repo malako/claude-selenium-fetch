@@ -24,22 +24,27 @@ solve them.
 ## One-time setup (per machine)
 
 ```bash
-pip install -r requirements.txt
+cd <this skill's directory>
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 ```
-
-(Or into a venv if you prefer — `fetch.py` just needs `selenium`,
-`undetected-chromedriver`, and `trafilatura` importable.)
 
 Requires Chrome (or Chromium) installed. `undetected-chromedriver` finds
 it automatically; if it's in a nonstandard location, set
 `SELENIUM_SKILL_CHROME_BIN=/path/to/chrome`.
 
+`requirements.txt` also pins `setuptools` — `undetected-chromedriver`
+imports `distutils`, which was removed from the stdlib in Python 3.12+;
+`setuptools` provides a shim. Without it, `fetch.py` fails at import
+with a clear error telling you to run the install command above.
+
 ## Usage
 
-Fetch a URL:
+Always invoke via the venv's interpreter, not bare `python3` — the
+dependencies only exist there:
 
 ```bash
-python3 fetch.py "https://example.com/some-page"
+.venv/bin/python fetch.py "https://example.com/some-page"
 ```
 
 Output:
@@ -67,8 +72,8 @@ domain keeps failing even through this skill, its cookies for that
 domain may be stale/flagged. Clear just that domain and retry once:
 
 ```bash
-python3 fetch.py --reset-domain example.com
-python3 fetch.py "https://example.com/some-page"
+.venv/bin/python fetch.py --reset-domain example.com
+.venv/bin/python fetch.py "https://example.com/some-page"
 ```
 
 This is **not** automatic — nothing resets on its own. Resetting one
