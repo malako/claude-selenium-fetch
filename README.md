@@ -1,5 +1,7 @@
 # claude-selenium-fetch
 
+[![Tests](https://github.com/malako/claude-selenium-fetch/actions/workflows/test.yml/badge.svg)](https://github.com/malako/claude-selenium-fetch/actions/workflows/test.yml)
+
 A Claude Code skill that fetches web pages through a stealth-patched
 headless Chrome (via `undetected-chromedriver`) when `WebFetch` gets
 blocked — 403s, Cloudflare/PerimeterX "checking your browser" pages, or
@@ -17,14 +19,23 @@ other bot detection.
 
 Does **not** help with geo-blocking or content behind a login.
 
-## Setup
+## Install
 
 ```bash
+git clone https://github.com/malako/claude-selenium-fetch.git
+cd claude-selenium-fetch
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
 Requires Chrome or Chromium installed.
+
+To register it as a Claude Code skill (available in every project, not
+just this directory):
+
+```bash
+ln -s "$(pwd)" ~/.claude/skills/claude-selenium-fetch
+```
 
 ## Usage
 
