@@ -1,9 +1,9 @@
 ---
-name: selenium-fetch
-description: Fetch a web page with a real headless Chrome browser (undetected-chromedriver) when WebFetch fails with a 403, a bot-check/"Just a moment" page, or other anti-bot blocking (Cloudflare, PerimeterX, etc.). Maintains a persistent per-machine browser profile so bot-challenge cookies persist across fetches instead of re-triggering the challenge every time. Use this as a fallback after WebFetch fails — not as a first choice, since it's much slower. Does NOT help with geo-blocking or content behind a login.
+name: claude-selenium-fetch
+description: Fetch a web page with a real headless Chrome browser (undetected-chromedriver) when WebFetch fails with a 403, a bot-check/"Just a moment" page, or other anti-bot blocking (Cloudflare, PerimeterX, etc.). Maintains a persistent per-machine browser profile so bot-challenge cookies persist across fetches instead of re-triggering the challenge every time. Use this as a fallback after WebFetch fails — not as a first choice, since it's much slower. Fetch-only, not interactive (no clicking/form-filling). Does NOT help with geo-blocking or content behind a login.
 ---
 
-# Selenium Fetch
+# Claude Selenium Fetch
 
 Fallback fetcher for pages a normal HTTP fetch can't get past. Renders the
 page in a real (headless) Chrome via `undetected-chromedriver`, which
@@ -16,6 +16,10 @@ Cloudflare/PerimeterX "checking your browser" page, or content that's
 clearly a bot-challenge shell rather than the real page. Don't use this
 as a first attempt; it launches a real browser and is much slower than
 WebFetch.
+
+This is a **fetch-only** tool: it loads the URL, waits for JS/bot
+challenges to settle, and extracts the resulting text. It does not
+click, fill forms, or otherwise interact with the page.
 
 It will **not** help if the failure is actually geo-blocking or a login
 wall — those aren't bot-detection problems and a browser alone doesn't
