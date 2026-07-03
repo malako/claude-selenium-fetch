@@ -1,3 +1,4 @@
 selenium>=4.15
 undetected-chromedriver>=3.5
 trafilatura>=1.6
+setuptools  # provides the distutils shim undetected-chromedriver needs on Python 3.12+

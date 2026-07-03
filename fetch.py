@@ -6,7 +6,10 @@ Fallback for when WebFetch gets a 403 / bot-check page. See SKILL.md.
 import argparse
 import json
 import os
+import re
+import shutil
 import sqlite3
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -60,6 +63,18 @@ def get_status_code(driver):
     return status
 
 
+def detect_chrome_major_version(chrome_bin):
+    binary = chrome_bin or shutil.which("google-chrome") or shutil.which("chromium-browser") or shutil.which("chromium")
+    if not binary:
+        return None
+    try:
+        out = subprocess.check_output([binary, "--version"], text=True)
+    except Exception:
+        return None
+    match = re.search(r"(\d+)\.", out)
+    return int(match.group(1)) if match else None
+
+
 def fetch(url, headed=False):
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -69,14 +84,21 @@ def fetch(url, headed=False):
     options.add_argument("--window-size=1920,1080")
 
     chrome_bin = os.environ.get("SELENIUM_SKILL_CHROME_BIN")
+    version_main = detect_chrome_major_version(chrome_bin)
 
     driver = uc.Chrome(
         options=options,
         headless=not headed,
         use_subprocess=True,
         browser_executable_path=chrome_bin,
+        version_main=version_main,
     )
     try:
+        driver.execute_cdp_cmd("Network.enable", {})
+        raw_ua = driver.execute_script("return navigator.userAgent")
+        if "Headless" in raw_ua:
+            driver.execute_cdp_cmd("Network.setUserAgentOverride", {"userAgent": raw_ua.replace("Headless", "")})
+
         driver.set_page_load_timeout(30)
         try:
             driver.get(url)
