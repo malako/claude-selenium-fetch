@@ -155,9 +155,23 @@ def _fetch_locked(url, headed):
         title = driver.title
         html = driver.page_source
 
-        content = trafilatura.extract(html, include_comments=False, include_tables=True)
-        if not content or len(content.strip()) < 200:
-            content = driver.execute_script("return document.body.innerText")
+        article = trafilatura.extract(html, include_comments=False, include_tables=True)
+        full_text = driver.execute_script("return document.body.innerText") or ""
+
+        if not article or len(article.strip()) < 200:
+            content = full_text
+        else:
+            content = article.strip()
+            # trafilatura's article-extraction can silently drop transactional
+            # page elements (price, buy-box, stock status) that don't read as
+            # prose. Always include the raw rendered text too, so nothing the
+            # user can actually see on the page is silently lost.
+            if full_text.strip() and full_text.strip() not in content:
+                content += (
+                    "\n\n--- FULL PAGE TEXT (raw rendered text; may repeat/"
+                    "include content trimmed above, e.g. price, stock status) ---\n\n"
+                    + full_text.strip()
+                )
 
         content = (content or "").strip()
         truncated = len(content) > CONTENT_CHAR_LIMIT
