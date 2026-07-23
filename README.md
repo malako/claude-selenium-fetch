@@ -3,18 +3,25 @@
 [![Tests](https://github.com/malako/claude-selenium-fetch/actions/workflows/test.yml/badge.svg)](https://github.com/malako/claude-selenium-fetch/actions/workflows/test.yml)
 
 A Claude Code skill that fetches web pages through a stealth-patched
-headless Chrome (via `undetected-chromedriver`) when `WebFetch` gets
-blocked — 403s, Cloudflare/PerimeterX "checking your browser" pages, or
-other bot detection.
+headless Chrome (via `undetected-chromedriver`) for two cases `WebFetch`
+can't handle:
+
+1. **Anti-bot blocking** — 403s, Cloudflare/PerimeterX "checking your
+   browser" pages, or other bot detection.
+2. **JavaScript-rendered pages** — WebFetch returns empty/truncated/shell
+   content because the page is built client-side (SPAs, Swagger/ReDoc API
+   docs, dashboards). A real browser runs the JS, so the real content
+   appears.
 
 ## What it does
 
-- Fetch-only: loads a URL, waits for bot challenges to clear, extracts
+- Fetch-only: loads a URL, waits for JS/bot challenges to clear, extracts
   content. No clicking or form-filling.
 - Persistent per-machine browser profile, so a solved bot challenge
   stays solved on later fetches instead of re-challenging every time.
 - Hybrid content extraction — clean article text via `trafilatura`,
-  falling back to rendered visible text on non-article pages.
+  falling back to rendered visible text on non-article pages (SPAs,
+  dashboards).
 - Real HTTP status captured via the Chrome DevTools protocol.
 
 Does **not** help with geo-blocking or content behind a login.

@@ -1,6 +1,6 @@
 ---
 name: claude-selenium-fetch
-description: Fetch a web page with a real headless Chrome browser (undetected-chromedriver) when WebFetch fails with a 403, a bot-check/"Just a moment" page, or other anti-bot blocking (Cloudflare, PerimeterX, etc.). Maintains a persistent per-machine browser profile so bot-challenge cookies persist across fetches instead of re-triggering the challenge every time. Use this as a fallback after WebFetch fails — not as a first choice, since it's much slower. Fetch-only, not interactive (no clicking/form-filling). Does NOT help with geo-blocking or content behind a login.
+description: Fetch a web page with a real headless Chrome browser (undetected-chromedriver) for two cases WebFetch can't handle. (1) Anti-bot blocking — a 403, a bot-check/"Just a moment" page, or Cloudflare/PerimeterX challenges. (2) JavaScript-rendered pages where WebFetch comes back empty, truncated, or as a shell because the content is built client-side (single-page apps, Swagger/ReDoc/other API docs, dashboards). It renders the page, waits for the JS to settle, and extracts the resulting text. Maintains a persistent per-machine browser profile so bot-challenge cookies persist across fetches instead of re-triggering the challenge every time. Use as a fallback after WebFetch fails OR returns unusable/empty content — not as a first choice, since it's much slower. Fetch-only, not interactive (no clicking/form-filling). Does NOT help with geo-blocking or content behind a login.
 ---
 
 # Claude Selenium Fetch
@@ -11,11 +11,21 @@ defeats most headless-browser fingerprinting checks that trigger 403s.
 
 ## When to use
 
-Only after `WebFetch` has already failed on a URL — with a 403, a
-Cloudflare/PerimeterX "checking your browser" page, or content that's
-clearly a bot-challenge shell rather than the real page. Don't use this
-as a first attempt; it launches a real browser and is much slower than
-WebFetch.
+As a fallback after `WebFetch` has already failed **or returned unusable
+content**, in either of these cases:
+
+- **Anti-bot blocking** — a 403, a Cloudflare/PerimeterX "checking your
+  browser" page, or content that's clearly a bot-challenge shell rather
+  than the real page.
+- **JavaScript-rendered pages** — WebFetch returns empty, truncated, or
+  an obvious shell because the page builds its content client-side (SPAs,
+  Swagger/ReDoc API docs, dashboards, admin UIs). WebFetch doesn't run
+  JS; a real browser does, so the actual content appears. If WebFetch
+  gives you a near-empty page or a small model's vague paraphrase of a
+  docs site, this is the fix.
+
+Don't use this as a first attempt; it launches a real browser and is
+much slower than WebFetch.
 
 This is a **fetch-only** tool: it loads the URL, waits for JS/bot
 challenges to settle, and extracts the resulting text. It does not
